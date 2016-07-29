@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 
+from pprint import pprint
 # TODO: pretty view
 # None - empty cells
 sudoku_example = [
@@ -15,7 +16,9 @@ sudoku_example = [
 ]
 
 def print_sudoku(sudoku):
-    print('\n'.join(', '.join(' ' if cell is None else str(cell) for cell in row) for row in sudoku))
+    if isinstance(sudoku, Sudoku):
+        sudoku = sudoku.fields
+    print('\n'.join(', '.join('-' if cell is None else str(cell) for cell in row) for row in sudoku))
 
 
 #0 -> (0,0) (0,1) (0,2) (1,0) (1,1) (1,2)  (2, 0) (2, 1) (2, 2)
@@ -27,7 +30,9 @@ def squads_cells(fields, squad):
         for j in range(3):
             yield fields[row + i][column + j]
 
-get_squad_by_coords = lambda i, j: i // 3 + j // 3
+            
+# pprint([[get_squad_by_coords(i, j) for j in range(9)] for i in range(9)])
+get_squad_by_coords = lambda i, j: i // 3 * 3 + j // 3
 
 def get_possible_values(fields, i, j):
     if fields[i][j] is not None:
@@ -45,6 +50,16 @@ def get_possible_values(fields, i, j):
 
     return possible
 
+def getOne(s): 
+    for e in s:
+        return e
+
+class WrongSudokuException(Exception):
+    pass
+
+class SudokuCellSetted(Exception):
+    pass
+
 class Sudoku:
 
     def __init__(self, fields):
@@ -53,9 +68,88 @@ class Sudoku:
         self.possible_values = [[get_possible_values(fields, i, j) for j in range(9)] for i in range(9)]
         self.rows = [set(filter(None, row)) for row in fields]
         self.columns = [set(row[i] for row in fields if row[i] is not None) for i in range(9)]
-        self.squads = [set(filter(None, squads_cells(i))) for i in range(9)]
+        self.squads = [set(filter(None, squads_cells(fields, i))) for i in range(9)]
 
+    def can_set(self, x, y, value):
+        return value in self.possible_values[x][y]
+    
+    def _set(self, x, y, value):
+        self.fields[x][y] = value
+        
+    def set(self, x, y, value):
+        if not self.can_set(x, y, value):
+            print(x, y, value, self.possible_values[x][y])
+            raise WrongSudokuException("cannot set")
+        if self.fields[x][y] is not None:
+            raise SudokuCellSetted("cannot set cell:" + str([x,y]) + 'value:' + str(value))
+        self._set(x, y, value)
+        self.recalc_cell(x, y, value)
+    
+    def recalc_cell(self, x, y, value):
+        for xs in range(9):
+            self.possible_values[xs][y].discard(value)
+        for pos_column in self.possible_values[x]:
+            pos_column.discard(value)
+
+        self.rows[x].discard(value)
+        self.columns[y].discard(value)
+        squad = get_squad_by_coords(x, y)
+        self.squads[squad].discard(value)
+
+        self.check_row(x)
+        self.check_row(y)
+        self.check_squad(squad)
+        self.check()
+
+    def check_row(self, x):
+        if len(self.rows[x]) != 1:
+            return
+        value = getOne(self.rows)
+        row = self.fields[x]
+        for y in range(9):
+            if row[y] is None:
+                self.set(x, y, value)
+                return
+    
+    def  check_column(self, y):
+        if len(self.columns[y]) != 1:
+            return
+        value = getOne(self.columns[y])
+        for x in range(9):
+            if self.fields[x][y] is None:
+                self.set(x, y, value)
+                return
+
+    def check_squad(self, n):
+        if len(self.squads[n]) != 0:
+            return
+        value = getOne(self.squads[n])
+        row = (squad // 3) * 3
+        column = (squad % 3) * 3
+        for i in range(3):
+            for j in range(3):
+                if self.fields[row + i][column + j] is None:
+                    self.set(row + i, column + j, value)
+                    return
+            
+    
+    def check(self):
+        for i in range(9):
+            for j in range(9):
+                if len(self.possible_values[i][j]) == 1:
+                    self.set(i, j, getOne(self.possible_values[i][j]))
+            self.check_row(i)
+            self.check_column(i)
+            self.check_squad(i)
+    
 
 if __name__ == '__main__':
     sudoku = Sudoku(sudoku_example)
-    print_sudoku(sudoku_example)
+    print("ORIGIN:")
+    print_sudoku(sudoku)
+    #pprint(sudoku.possible_values)
+
+    sudoku.check()
+    print("AFTER CHECK:")
+    print_sudoku(sudoku)
+    #pprint(sudoku.possible_values)
