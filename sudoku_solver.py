@@ -23,12 +23,12 @@ def print_sudoku(sudoku):
 
 #0 -> (0,0) (0,1) (0,2) (1,0) (1,1) (1,2)  (2, 0) (2, 1) (2, 2)
 #1 -> (3,0) (3,1) (3,2) (4,0) (4,1) (4,2)  (5, 0) (5, 1) (5, 2)
+
 def squads_cells(fields, squad):
     row = (squad // 3) * 3
     column = (squad % 3) * 3
-    for i in range(3):
-        for j in range(3):
-            yield fields[row + i][column + j]
+    for r in fields[row: row + 3]:
+        yield from r[column: column + 3]
 
             
 # pprint([[get_squad_by_coords(i, j) for j in range(9)] for i in range(9)])
@@ -50,7 +50,7 @@ def get_possible_values(fields, i, j):
 
     return possible
 
-def getOne(s): 
+def get_one(s):
     for e in s:
         return e
 
@@ -84,60 +84,77 @@ class Sudoku:
             raise SudokuCellSetted("cannot set cell:" + str([x,y]) + 'value:' + str(value))
         self._set(x, y, value)
         self.recalc_cell(x, y, value)
-    
-    def recalc_cell(self, x, y, value):
-        for xs in range(9):
-            self.possible_values[xs][y].discard(value)
-        for pos_column in self.possible_values[x]:
-            pos_column.discard(value)
 
+    def trySetOne(self, x, y):
+        possible_values = self.possible_values[x][y]
+        if len(possible_values) != 1:
+            return False
+        value = possible_values.pop()
+        self._set(x, y, value)
+        self.recalc_cell(x, y, value)
+        return True
+
+    def recalc_cell(self, x, y, value):
+        """ Цель: найти ещё одну клетку куда можно поставить"""
         self.rows[x].discard(value)
         self.columns[y].discard(value)
         squad = get_squad_by_coords(x, y)
         self.squads[squad].discard(value)
 
-        self.check_row(x)
-        self.check_row(y)
+        if not self.check_column(y):
+            for xs in range(9):
+                self.possible_values[xs][y].discard(value)
+                if self.trySetOne(xs, y):
+                    break
+        if not self.check_row(x):
+            for j, pos_column in enumerate(self.possible_values[x]):
+                pos_column.discard(value)
+                if self.trySetOne(x, j):
+                    break
+
         self.check_squad(squad)
-        self.check()
 
     def check_row(self, x):
         if len(self.rows[x]) != 1:
-            return
-        value = getOne(self.rows)
+            return False
+        value = get_one(self.rows)
         row = self.fields[x]
         for y in range(9):
             if row[y] is None:
                 self.set(x, y, value)
-                return
+                return True
+        return False
     
-    def  check_column(self, y):
+    def check_column(self, y):
         if len(self.columns[y]) != 1:
-            return
-        value = getOne(self.columns[y])
+            return False
+        value = get_one(self.columns[y])
         for x in range(9):
             if self.fields[x][y] is None:
                 self.set(x, y, value)
-                return
+                return True
+        return False
 
     def check_squad(self, n):
-        if len(self.squads[n]) != 0:
-            return
-        value = getOne(self.squads[n])
+        if len(self.squads[n]) != 1:
+            return False
+        value = get_one(self.squads[n])
         row = (squad // 3) * 3
         column = (squad % 3) * 3
         for i in range(3):
+            r = self.fields[row + i]
             for j in range(3):
-                if self.fields[row + i][column + j] is None:
+                if r[column + j] is None:
                     self.set(row + i, column + j, value)
-                    return
-            
+                    return True
+        return False
+
     
     def check(self):
         for i in range(9):
             for j in range(9):
                 if len(self.possible_values[i][j]) == 1:
-                    self.set(i, j, getOne(self.possible_values[i][j]))
+                    self.set(i, j, get_one(self.possible_values[i][j]))
             self.check_row(i)
             self.check_column(i)
             self.check_squad(i)
