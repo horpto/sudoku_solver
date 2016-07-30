@@ -64,6 +64,8 @@ class Sudoku:
 
     def __init__(self, fields):
         self.fields = fields
+        self.rows = [{j for j, x in enumerate(row) if x is None} for row in fields]
+        self.columns = [{i for i in range(9) if fields[i][j] is None} for j in range(9)]
         
         self.possible_values = [[get_possible_values(fields, i, j) for j in range(9)] for i in range(9)]
         self.squads = [set(filter(None, squads_cells(fields, i))) for i in range(9)]
@@ -73,6 +75,9 @@ class Sudoku:
     
     def _set(self, x, y, value):
         self.fields[x][y] = value
+        self.rows[x].discard(y)
+        self.columns[y].discard(x)
+        self.recalc_cell(x, y, value)
         
     def set(self, x, y, value):
         if not self.can_set(x, y, value):
@@ -81,7 +86,6 @@ class Sudoku:
         if self.fields[x][y] is not None:
             raise SudokuCellSetted("cannot set cell:" + str([x,y]) + 'value:' + str(value))
         self._set(x, y, value)
-        self.recalc_cell(x, y, value)
 
     def trySetOne(self, x, y):
         possible_values = self.possible_values[x][y]
@@ -89,7 +93,6 @@ class Sudoku:
             return False
         value = possible_values.pop()
         self._set(x, y, value)
-        self.recalc_cell(x, y, value)
         return True
 
     def recalc_cell(self, x, y, value):
@@ -97,18 +100,24 @@ class Sudoku:
         squad = get_squad_by_coords(x, y)
         self.squads[squad].discard(value)
 
-        for xs in range(9):
-            self.possible_values[xs][y].discard(value)
-            if self.trySetOne(xs, y):
-                break
-        for j, pos_column in enumerate(self.possible_values[x]):
-            pos_column.discard(value)
-            if self.trySetOne(x, j):
-                break
+        to_set = []
+        for xs in self.columns[y]:
+            s = self.possible_values[xs][y]
+            s.discard(value)
+            if len(s) == 1:
+                to_set.append((xs, y, s.pop()))
 
+        row_possibles = self.possible_values[x]
+        for ys in self.rows[x]:
+            s = row_possibles[ys]
+            s.discard(value)
+            if len(s) == 1:
+                to_set.append((x, ys, s.pop()))
+
+        for xs, ys, v in to_set:
+            self._set(xs, ys, v)
         self.check_squad(squad)
     
-
     def check_squad(self, n):
         if len(self.squads[n]) != 1:
             return False
@@ -126,8 +135,7 @@ class Sudoku:
     def check(self):
         for i in range(9):
             for j in range(9):
-                if len(self.possible_values[i][j]) == 1:
-                    self.set(i, j, get_one(self.possible_values[i][j]))
+                self.trySetOne(i, j)
             self.check_squad(i)
     
 
