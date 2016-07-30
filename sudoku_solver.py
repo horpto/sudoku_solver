@@ -139,11 +139,15 @@ class Sudoku:
             self.check_squad(i)
     
 
-if __name__ == '__main__':
+def main():
     sudoku = Sudoku(sudoku_example)
     print("ORIGIN:")
     print_sudoku(sudoku)
-
+    
     sudoku.check()
     print("AFTER CHECK:")
     print_sudoku(sudoku)
+
+
+if __name__ == '__main__':
+    main()
